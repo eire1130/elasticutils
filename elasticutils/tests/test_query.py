@@ -1262,6 +1262,52 @@ class FacetTest(ESTestCase):
                         for item in qs.facet_counts()['created1']]
         eq_(sorted(facet_counts), [2, 3])
 
+    def test_facet_terms_stats(self):
+            """Test terms stats facet"""
+            # FacetTest.create_index()
+            FacetTest.index_data([
+                    {'id': 1, "term_id":1, 'value': 1},
+                    {'id': 2, "term_id":1, 'value': 1},
+                    {'id': 3, "term_id":1, 'value': 1},
+                    {'id': 4, "term_id":1, 'value': 2},
+                    {'id': 5, "term_id":2, 'value': 2},
+                    {'id': 6, "term_id":2, 'value': 3},
+                    {'id': 7, "term_id":2, 'value': 3},
+                    {'id': 8, "term_id":2, 'value': 3},
+                    {'id': 9, "term_id":2, 'value': 4},
+                ])
+            FacetTest.refresh()
+            qs = (self.get_s()
+                  .facet_raw(created1={
+                        'terms_stats': {
+                            "key_field": "term_id",
+                            "value_field": "value"
+                          }
+                  })
+            )
+
+            data = qs.facet_counts()
+            first_term = data["created1"]["terms"][0]
+            second_term = data["created1"]["terms"][1]
+            eq_(first_term,{
+                        u"term": 2,
+                        u"count": 5,
+                        u"total_count": 5,
+                        u"min": 2,
+                        u"max": 4,
+                        u"total": 15,
+                        u"mean": 3.0,
+                        })
+            eq_(second_term,{
+                        u"term": 1,
+                        u"count": 4,
+                        u"total_count": 4,
+                        u"min": 1,
+                        u"max": 2,
+                        u"total": 5,
+                        u"mean": 1.25,
+                        })
+
     def test_facet_statistical(self):
         """Test statistical facet"""
         FacetTest.index_data([
@@ -1354,22 +1400,53 @@ class FacetTest(ESTestCase):
 
     def test_invalid_field_type(self):
         """Invalid _type should raise InvalidFacetType."""
+        a= {'elasticutilsmappingtype': {'properties': {'pin': {'properties': {'location': {'type': 'geo_point'}}}}}}
+        FacetTest.put_mapping(mapping=a)
         FacetTest.index_data([
-                {'id': 1, 'age': 30},
-                {'id': 2, 'age': 40}
+                {"id":1,
+                "pin" : {
+                    "location" : {
+                        "lat" : 40.12,
+                        "lon" : -71.34
+                            }
+                        }
+                    }
             ])
         FacetTest.refresh()
 
-        # Note: This uses a terms_stats facet. If we implement handling
+        # Note: This uses a geo_distance facet. If we implement handling
         # for that, then we need to pick another facet type to fail on
         # or do the right thing and mock the test.
-        # Note: Previously this used histogram and statistical facets,
+        # Note: Previously this used histogram, statistical and terms_stats facets,
         # but those were implemented.
         with self.assertRaises(InvalidFacetType):
             (self.get_s()
-                 .facet_raw(created1={'terms_stats': {'key_field': 'age',
-                                                      'value_field': 'age'}})
+                 .facet_raw(created1={
+                          "geo_distance": {
+                            "pin.location": {
+                              "lat": 40,
+                              "lon": -70
+                            },
+                            "ranges": [
+                              {
+                                "to": 10
+                              },
+                              {
+                                "from": 10,
+                                "to": 20
+                              },
+                              {
+                                "from": 20,
+                                "to": 100
+                              },
+                              {
+                                "from": 100
+                              }
+                            ]
+                          }
+                        })
                  .facet_counts())
+        FacetTest.mapping = {}
 
 
 class HighlightTest(ESTestCase):

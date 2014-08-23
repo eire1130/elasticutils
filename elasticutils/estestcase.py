@@ -113,6 +113,19 @@ class ESTestCase(TestCase):
         cls.get_es().indices.create(index=cls.index_name, body=body)
 
     @classmethod
+    def put_mapping(cls, mapping):
+        """Creates an index with specified settings
+
+        Uses ``cls.index_name`` as the index to create.
+
+        :arg settings: Any additional settings to use to create the
+            index.
+
+        """
+        cls.get_es().indices.put_mapping(
+        index=cls.index_name, doc_type=cls.mapping_type_name, body=mapping)
+
+    @classmethod
     def index_data(cls, documents, id_field='id'):
         """Indexes specified data
 
